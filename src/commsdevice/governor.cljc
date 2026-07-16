@@ -13,13 +13,15 @@
   the communication-equipment-manufacturer analog of
   `cloud-itonami-isic-6512`'s CasualtyGovernor.
 
-  Seven checks, in priority order, ALL HARD violations: a human approver
+  Eight checks, in priority order, ALL HARD violations: a human approver
   CANNOT override them (you don't get to approve your way past a
   fabricated radio-type-approval spec-basis, incomplete evidence, a
   robot display-bonding-press simulation that never ran or that
   independently re-checks out-of-tolerance, an out-of-spec RF conducted-
-  power deviation, an unresolved end-of-line defect, or a double
-  shipment/certificate-issuance). The confidence/actuation gate is SOFT:
+  power deviation, an unresolved end-of-line defect, an upstream
+  component pedigree whose shape or claims fail independent
+  re-verification, or a double shipment/certificate-issuance). The
+  confidence/actuation gate is SOFT:
   it asks a human to look (low confidence / actuation), and the human
   may approve -- but see `commsdevice.phase`: for `:stake :actuation/
   ship-device-unit`/`:actuation/issue-radio-conformity-certificate` (a
@@ -115,7 +117,46 @@
                                        op against an unscreened
                                        device-unit -- see this ns's own
                                        test suite.
-    6. Confidence floor / actuation
+    6. Upstream component pedigree
+       claims out of tolerance       -- ADR-2607999980's smartphone-
+                                       chain end-consumer applied link
+                                       of the ADR-2607999950 cross-
+                                       actor supply-chain-linkage
+                                       pattern (direct port of
+                                       ADR-2607999960's `automotive.
+                                       governor` equivalent check): for
+                                       `:actuation/ship-device-unit`,
+                                       when the device-unit carries an
+                                       OPTIONAL `:upstream-component-
+                                       pedigrees` (a VECTOR of `kotoba.
+                                       pedigree` records upstream
+                                       `cloud-itonami-isic-2610` fab
+                                       lots issued via `fab.export/
+                                       pedigree-for-lot`),
+                                       INDEPENDENTLY re-verify EACH
+                                       one -- never trust the upstream
+                                       actor's claim at face value:
+                                       (a) `kotoba.pedigree/valid?` on
+                                       its own shape (recursively
+                                       shape-valid through any embedded
+                                       `:pedigree/upstream`, e.g. a
+                                       genuine non-ferrous-ore -> fab-
+                                       lot -> device-unit 2-hop chain),
+                                       and (b) its `:bond-pull-
+                                       strength-gf` claim actually
+                                       clears THIS actor's own
+                                       disclosed acceptance floor for
+                                       upstream components
+                                       (`min-upstream-component-bond-
+                                       pull-strength-gf`, below). When
+                                       `:upstream-component-pedigrees`
+                                       is ABSENT or empty this check is
+                                       a NO-OP -- existing proposals
+                                       with no upstream linkage
+                                       continue to ship exactly as
+                                       before this ADR (additive, never
+                                       a breaking change).
+    7. Confidence floor / actuation
        gate                          -- LLM confidence below threshold,
                                        OR the op is `:actuation/ship-
                                        device-unit`/`:actuation/issue-
@@ -136,9 +177,42 @@
   (:require [commsdevice.facts :as facts]
             [commsdevice.registry :as registry]
             [commsdevice.robotics :as robotics]
-            [commsdevice.store :as store]))
+            [commsdevice.store :as store]
+            [kotoba.pedigree :as pedigree]))
 
 (def confidence-floor 0.6)
+
+(def ^:const min-upstream-component-bond-pull-strength-gf
+  "Real, disclosed minimum acceptable upstream fab-lot wire-bond pull
+  strength (grams-force -- a `kotoba.pedigree` `:bond-pull-strength-
+  gf` claim from a `cloud-itonami-isic-2610`-issued pedigree,
+  ADR-2607999980) this actor requires before accepting an incoming
+  fab lot as suitable to build into a communication-equipment device
+  unit.
+
+  Set EQUAL to the fab acceptance band's OWN lower bound (`:bond-
+  pull-strength-min` = 6.0 gf) every real, non-defective lot in
+  `fab.store`'s own demo fleet carries -- disclosed reasoning, not a
+  fresh margin-derived number, mirroring `automotive.governor/min-
+  upstream-part-proof-load-n`'s own choice one link earlier in the
+  automotive chain this repo's pattern direct-ports: this actor has
+  NO independent wire-bond-pull-strength engineering model of its
+  own -- that physics lives entirely upstream, in `fab.robotics`/
+  `fab.simphysics`. Unlike `autoparts.governor/min-upstream-tensile-
+  load-n` (which adds a margin because raw feedstock has not yet been
+  joined), this actor is the component's RECEIVER, not a further
+  feedstock-to-joint hop -- the honest floor disclosed here is to
+  require, at minimum, EXACTLY what the fab's own governor already
+  gated real-world lot dispatch on (`fab.governor/robotics-
+  simulation-violations` independently re-verifies this same band
+  before a lot may ever dispatch) -- never accept a component
+  pedigree a fab's own governor would not already have cleared for
+  dispatch. `fab.robotics` does not expose this floor as a public
+  named constant (unlike `autoparts.robotics/min-proof-load-n`), so
+  this value is the actual, established acceptance-band lower bound
+  every lot in that fleet's own demo/production data carries, not a
+  literal code-constant cross-reference."
+  6.0)
 
 (def high-stakes
   "Stakes grave enough to always require a human, even when clean.
@@ -234,6 +308,57 @@
       [{:rule :end-of-line-defect-unresolved
         :detail "未解決の完成検査欠陥がある状態での無線設備適合証明書発行提案は進められない"}])))
 
+(defn- upstream-component-pedigree-violations-at
+  "Independent re-verification of a SINGLE `:upstream-component-
+  pedigrees` entry -- see `upstream-component-pedigrees-claims-out-
+  of-tolerance-violations` below. `idx` is only used to make each
+  violation's `:detail` identify WHICH entry failed when a device-unit
+  carries more than one."
+  [idx p]
+  (cond
+    (not (pedigree/valid? p))
+    [{:rule :upstream-component-pedigree-invalid-shape
+      :detail (str "upstream-component-pedigrees[" idx "] がkotoba.pedigreeの形状検証に失敗")}]
+
+    (let [v (pedigree/claim-value p :bond-pull-strength-gf)]
+      (or (not (number? v)) (< v min-upstream-component-bond-pull-strength-gf)))
+    [{:rule :upstream-component-pedigree-claims-out-of-tolerance
+      :detail (str "upstream-component-pedigrees[" idx "](" (:pedigree/id p)
+                   ")の実測ワイヤーボンドプル強度(" (pedigree/claim-value p :bond-pull-strength-gf)
+                   "gf)が受入基準(" min-upstream-component-bond-pull-strength-gf "gf)を下回る")}]))
+
+(defn- upstream-component-pedigrees-claims-out-of-tolerance-violations
+  "ADR-2607999980's smartphone-chain end-consumer applied link of the
+  ADR-2607999950 cross-actor supply-chain-linkage pattern (direct
+  port of ADR-2607999960's `automotive.governor` equivalent check).
+  For `:actuation/ship-device-unit`: when the device-unit carries an
+  OPTIONAL `:upstream-component-pedigrees` (a VECTOR of `kotoba.
+  pedigree` records upstream `cloud-itonami-isic-2610` fab lots
+  issued via `fab.export/pedigree-for-lot` and a test/demo/
+  orchestration script attached to this device-unit as plain EDN
+  data -- never a live network call), INDEPENDENTLY re-verify EACH
+  one, never trusting the upstream actor's claim at face value: (a)
+  the pedigree's own shape (`kotoba.pedigree/valid?`, recursively
+  shape-valid through any embedded `:pedigree/upstream` -- a
+  malformed/incomplete pedigree, at ANY hop of a chain, is never
+  accepted), and (b) its `:bond-pull-strength-gf` claim actually
+  clears THIS actor's own disclosed acceptance floor for upstream
+  components (`min-upstream-component-bond-pull-strength-gf`) -- the
+  SAME 'ground truth, not self-report' discipline `robotics-
+  simulation-violations`/`device-rf-power-out-of-range-violations`
+  above already apply WITHIN this actor, now extended ACROSS actors.
+
+  When `:upstream-component-pedigrees` is ABSENT or empty this check
+  is a NO-OP -- existing proposals with no upstream linkage continue
+  to ship exactly as before this ADR (additive, never a breaking
+  change)."
+  [{:keys [op subject]} st]
+  (when (= op :actuation/ship-device-unit)
+    (let [a (store/device-unit st subject)
+          pedigrees (:upstream-component-pedigrees a)]
+      (when (seq pedigrees)
+        (into [] (mapcat upstream-component-pedigree-violations-at (range) pedigrees))))))
+
 (defn- already-shipped-violations
   "For `:actuation/ship-device-unit`, refuses to ship a device-unit
   action for the SAME device-unit twice, off a dedicated `:device-
@@ -266,6 +391,7 @@
                            (robotics-simulation-violations request st)
                            (device-rf-power-out-of-range-violations request st)
                            (end-of-line-defect-unresolved-violations request proposal st)
+                           (upstream-component-pedigrees-claims-out-of-tolerance-violations request st)
                            (already-shipped-violations request st)
                            (already-certified-violations request st)))
         conf (:confidence proposal 0.0)
