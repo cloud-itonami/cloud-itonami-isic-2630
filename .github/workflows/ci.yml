@@ -3,9 +3,11 @@ name: ci
 # Kept correct and ready for when Actions are enabled on the org.
 # Until then: run locally with `clojure -M:lint` and `clojure -M:dev:test`.
 #
-# Workspace layout: deps use :local/root to kotoba-lang/langgraph and
-# kotoba-lang/langchain (public), and a pinned git-coordinate dep on
-# kotoba-lang/physics-2d (real time-stepped rigid-body simulation engine).
+# Workspace layout: deps use :local/root to kotoba-lang/langgraph,
+# kotoba-lang/langchain and kotoba-lang/robotics (all public), and
+# pinned git-coordinate deps on kotoba-lang/physics-2d (real
+# time-stepped rigid-body simulation engine) and kotoba-lang/pedigree
+# (cross-actor supply-chain-linkage contract, ADR-2607999980).
 # CI reconstructs sibling paths for the :local/root deps.
 
 on:
@@ -39,6 +41,10 @@ jobs:
         with:
           repository: kotoba-lang/langchain
           path: orgs/kotoba-lang/langchain
+      - uses: actions/checkout@v4
+        with:
+          repository: kotoba-lang/robotics
+          path: orgs/kotoba-lang/robotics
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: "21" }
       - uses: DeLaGuardo/setup-clojure@13.0
