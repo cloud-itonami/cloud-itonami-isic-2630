@@ -34,7 +34,20 @@
   query over an immutable log -- the audit trail a community trusting a
   communication-equipment manufacturer needs, and the evidence a
   manufacturer needs if a shipment or radio-conformity-certificate
-  decision is later disputed."
+  decision is later disputed.
+
+  `:upstream-component-pedigrees` (ADR-2607999980, the smartphone-chain
+  end-consumer applied link of the ADR-2607999950 cross-actor supply-
+  chain-linkage pattern, direct port of ADR-2607999960's `automotive.
+  store` equivalent) is an OPTIONAL device-unit field -- a VECTOR of
+  `kotoba.pedigree` records (a smartphone has many components, unlike
+  `fab.store`'s single `:upstream-ore-pedigree` on a lot) an upstream
+  `cloud-itonami-isic-2610` fab lot issued via `fab.export/pedigree-
+  for-lot`, attached via the SAME general-purpose `:device-unit/
+  intake`+`:patch` mechanism every other device-unit field already
+  uses (no new op/effect needed). Absent on every device-unit that
+  predates this ADR; `commsdevice.governor`'s new check treats its
+  absence as a no-op, so this is purely additive on both backends."
   (:require #?(:clj  [clojure.edn :as edn]
                :cljs [cljs.reader :as edn])
             [commsdevice.registry :as registry]
@@ -255,6 +268,7 @@
                                  bonding-press-platen-mass-kg sim-peak-bonding-force-n sim-peak-bonding-pressure-mpa
                                  bonding-pressure-min-mpa bonding-pressure-max-mpa
                                  eol-defect-unresolved? robotics-sim-verified? robotics-sim-record
+                                 upstream-component-pedigrees
                                  device-unit-shipped? radio-conformity-certified?
                                  jurisdiction status shipment-number certificate-number]}]
   (cond-> {:device-unit/id id}
@@ -270,6 +284,7 @@
     (some? eol-defect-unresolved?)              (assoc :device-unit/eol-defect-unresolved? eol-defect-unresolved?)
     (some? robotics-sim-verified?)              (assoc :device-unit/robotics-sim-verified? robotics-sim-verified?)
     (some? robotics-sim-record)                 (assoc :device-unit/robotics-sim-record (enc robotics-sim-record))
+    (some? upstream-component-pedigrees)        (assoc :device-unit/upstream-component-pedigrees (enc upstream-component-pedigrees))
     (some? device-unit-shipped?)                (assoc :device-unit/device-unit-shipped? device-unit-shipped?)
     (some? radio-conformity-certified?)         (assoc :device-unit/radio-conformity-certified? radio-conformity-certified?)
     jurisdiction                                (assoc :device-unit/jurisdiction jurisdiction)
@@ -283,6 +298,7 @@
    :device-unit/bonding-press-platen-mass-kg :device-unit/sim-peak-bonding-force-n :device-unit/sim-peak-bonding-pressure-mpa
    :device-unit/bonding-pressure-min-mpa :device-unit/bonding-pressure-max-mpa
    :device-unit/eol-defect-unresolved? :device-unit/robotics-sim-verified? :device-unit/robotics-sim-record
+   :device-unit/upstream-component-pedigrees
    :device-unit/device-unit-shipped? :device-unit/radio-conformity-certified?
    :device-unit/jurisdiction :device-unit/status :device-unit/shipment-number :device-unit/certificate-number])
 
@@ -300,6 +316,7 @@
      :eol-defect-unresolved? (boolean (:device-unit/eol-defect-unresolved? m))
      :robotics-sim-verified? (boolean (:device-unit/robotics-sim-verified? m))
      :robotics-sim-record (dec* (:device-unit/robotics-sim-record m))
+     :upstream-component-pedigrees (dec* (:device-unit/upstream-component-pedigrees m))
      :device-unit-shipped? (boolean (:device-unit/device-unit-shipped? m))
      :radio-conformity-certified? (boolean (:device-unit/radio-conformity-certified? m))
      :jurisdiction (:device-unit/jurisdiction m) :status (:device-unit/status m)
