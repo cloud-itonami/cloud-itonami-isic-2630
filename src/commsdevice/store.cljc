@@ -48,11 +48,10 @@
   uses (no new op/effect needed). Absent on every device-unit that
   predates this ADR; `commsdevice.governor`'s new check treats its
   absence as a no-op, so this is purely additive on both backends."
-  (:require #?(:clj  [clojure.edn :as edn]
-               :cljs [cljs.reader :as edn])
-            [commsdevice.registry :as registry]
+  (:require [commsdevice.registry :as registry]
             [commsdevice.robotics :as robotics]
-            [langchain.db :as d]))
+            [langchain.db :as d]
+            [langchain-store.core :as ls]))
 
 (defprotocol Store
   (device-unit [s id])
@@ -261,9 +260,6 @@
    :shipment-sequence/jurisdiction    {:db/unique :db.unique/identity}
    :certificate-sequence/jurisdiction {:db/unique :db.unique/identity}})
 
-(defn- enc [v] (pr-str v))
-(defn- dec* [s] (when s (edn/read-string s)))
-
 (defn- device-unit->tx [{:keys [id device-unit-name rf-power-deviation-actual rf-power-deviation-min rf-power-deviation-max
                                  bonding-press-platen-mass-kg sim-peak-bonding-force-n sim-peak-bonding-pressure-mpa
                                  bonding-pressure-min-mpa bonding-pressure-max-mpa
@@ -283,8 +279,8 @@
     bonding-pressure-max-mpa                    (assoc :device-unit/bonding-pressure-max-mpa bonding-pressure-max-mpa)
     (some? eol-defect-unresolved?)              (assoc :device-unit/eol-defect-unresolved? eol-defect-unresolved?)
     (some? robotics-sim-verified?)              (assoc :device-unit/robotics-sim-verified? robotics-sim-verified?)
-    (some? robotics-sim-record)                 (assoc :device-unit/robotics-sim-record (enc robotics-sim-record))
-    (some? upstream-component-pedigrees)        (assoc :device-unit/upstream-component-pedigrees (enc upstream-component-pedigrees))
+    (some? robotics-sim-record)                 (assoc :device-unit/robotics-sim-record (ls/enc robotics-sim-record))
+    (some? upstream-component-pedigrees)        (assoc :device-unit/upstream-component-pedigrees (ls/enc upstream-component-pedigrees))
     (some? device-unit-shipped?)                (assoc :device-unit/device-unit-shipped? device-unit-shipped?)
     (some? radio-conformity-certified?)         (assoc :device-unit/radio-conformity-certified? radio-conformity-certified?)
     jurisdiction                                (assoc :device-unit/jurisdiction jurisdiction)
@@ -315,8 +311,8 @@
      :bonding-pressure-max-mpa (:device-unit/bonding-pressure-max-mpa m)
      :eol-defect-unresolved? (boolean (:device-unit/eol-defect-unresolved? m))
      :robotics-sim-verified? (boolean (:device-unit/robotics-sim-verified? m))
-     :robotics-sim-record (dec* (:device-unit/robotics-sim-record m))
-     :upstream-component-pedigrees (dec* (:device-unit/upstream-component-pedigrees m))
+     :robotics-sim-record (ls/dec* (:device-unit/robotics-sim-record m))
+     :upstream-component-pedigrees (ls/dec* (:device-unit/upstream-component-pedigrees m))
      :device-unit-shipped? (boolean (:device-unit/device-unit-shipped? m))
      :radio-conformity-certified? (boolean (:device-unit/radio-conformity-certified? m))
      :jurisdiction (:device-unit/jurisdiction m) :status (:device-unit/status m)
@@ -331,25 +327,25 @@
          (map #(pull->device-unit (d/pull (d/db conn) device-unit-pull [:device-unit/id %])))
          (sort-by :id)))
   (eol-screen-of [_ id]
-    (dec* (d/q '[:find ?p . :in $ ?aid
+    (ls/dec* (d/q '[:find ?p . :in $ ?aid
                 :where [?k :eol-screen/device-unit-id ?aid] [?k :eol-screen/payload ?p]]
               (d/db conn) id)))
   (requirements-verification-of [_ device-unit-id]
-    (dec* (d/q '[:find ?p . :in $ ?aid
+    (ls/dec* (d/q '[:find ?p . :in $ ?aid
                 :where [?a :verification/device-unit-id ?aid] [?a :verification/payload ?p]]
               (d/db conn) device-unit-id)))
   (ledger [_]
     (->> (d/q '[:find ?s ?f :where [?e :ledger/seq ?s] [?e :ledger/fact ?f]] (d/db conn))
          (sort-by first)
-         (mapv (comp dec* second))))
+         (mapv (comp ls/dec* second))))
   (shipment-history [_]
     (->> (d/q '[:find ?s ?r :where [?e :shipment/seq ?s] [?e :shipment/record ?r]] (d/db conn))
          (sort-by first)
-         (mapv (comp dec* second))))
+         (mapv (comp ls/dec* second))))
   (certificate-history [_]
     (->> (d/q '[:find ?s ?r :where [?e :certificate/seq ?s] [?e :certificate/record ?r]] (d/db conn))
          (sort-by first)
-         (mapv (comp dec* second))))
+         (mapv (comp ls/dec* second))))
   (next-shipment-sequence [_ jurisdiction]
     (or (d/q '[:find ?n . :in $ ?j
               :where [?e :shipment-sequence/jurisdiction ?j] [?e :shipment-sequence/next ?n]]
@@ -370,10 +366,10 @@
       (d/transact! conn [(device-unit->tx value)])
 
       :verification/set
-      (d/transact! conn [{:verification/device-unit-id (first path) :verification/payload (enc payload)}])
+      (d/transact! conn [{:verification/device-unit-id (first path) :verification/payload (ls/enc payload)}])
 
       :eol-screen/set
-      (d/transact! conn [{:eol-screen/device-unit-id (first path) :eol-screen/payload (enc payload)}])
+      (d/transact! conn [{:eol-screen/device-unit-id (first path) :eol-screen/payload (ls/enc payload)}])
 
       :device-unit/mark-shipped
       (let [device-unit-id (first path)
@@ -383,7 +379,7 @@
         (d/transact! conn
                      [(device-unit->tx (assoc device-unit-patch :id device-unit-id))
                       {:shipment-sequence/jurisdiction jurisdiction :shipment-sequence/next next-n}
-                      {:shipment/seq (count (shipment-history s)) :shipment/record (enc (get result "record"))}])
+                      {:shipment/seq (count (shipment-history s)) :shipment/record (ls/enc (get result "record"))}])
         result)
 
       :device-unit/mark-certified
@@ -394,12 +390,12 @@
         (d/transact! conn
                      [(device-unit->tx (assoc device-unit-patch :id device-unit-id))
                       {:certificate-sequence/jurisdiction jurisdiction :certificate-sequence/next next-n}
-                      {:certificate/seq (count (certificate-history s)) :certificate/record (enc (get result "record"))}])
+                      {:certificate/seq (count (certificate-history s)) :certificate/record (ls/enc (get result "record"))}])
         result)
       nil)
     s)
   (append-ledger! [s fact]
-    (d/transact! conn [{:ledger/seq (count (ledger s)) :ledger/fact (enc fact)}])
+    (d/transact! conn [{:ledger/seq (count (ledger s)) :ledger/fact (ls/enc fact)}])
     fact)
   (with-device-units [s device-units]
     (when (seq device-units) (d/transact! conn (mapv device-unit->tx (vals device-units)))) s))
