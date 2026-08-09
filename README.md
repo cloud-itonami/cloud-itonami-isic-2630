@@ -131,7 +131,18 @@ communication-equipment plant's own acts.
 (export/package->csv-bundle db)     ;; CSV bundle (device-units/ledger/shipments/radio-conformity-certificates)
 ```
 
-Operator console (static sample): `docs/samples/operator-console.html`.
+Operator console: `docs/samples/operator-console.html`. Not hand-written
+— `commsdevice.render-html` **runs the real actor** (`commsdevice.operation`
+→ `commsdevice.governor` → `commsdevice.store`) at build time and renders
+whatever the store and the append-only audit ledger actually contain, so
+every id, figure, rule name and hold detail on the page is real actor
+output. Deterministic: no timestamps or randomness, so two consecutive
+runs are byte-identical.
+
+```bash
+clojure -M:dev:render-html                 # -> docs/samples/operator-console.html
+clojure -M:dev:render-html /tmp/out.html   # or any other path
+```
 
 ## Develop
 
@@ -139,6 +150,7 @@ Operator console (static sample): `docs/samples/operator-console.html`.
 clojure -M:dev:test
 clojure -M:lint
 clojure -M:dev:run
+clojure -M:dev:render-html
 ```
 
 ## License
