@@ -41,7 +41,18 @@
         ;; `:pedigree/upstream` chaining support).
         io.github.kotoba-lang/pedigree
         {:git/url "https://github.com/kotoba-lang/pedigree.git"
-         :sha "f85784211422a651fea26f448f601abfba2e7d61"}}
+         :sha "f85784211422a651fea26f448f601abfba2e7d61"}
+        ;; Workspace BASE design system (デジタル庁デザインシステム, DADS) --
+        ;; `commsdevice.render-html` styles `docs/samples/operator-console.html`
+        ;; with `jp-go-dds.skin/dds+skin` instead of inventing a private token
+        ;; vocabulary. Build-time only (the generated page carries plain CSS,
+        ;; no runtime dependency). A real pinned git-coordinate dep, same
+        ;; reasoning physics-2d/pedigree above already establish -- this repo
+        ;; stays forkable standalone outside the monorepo. Same SHA every
+        ;; sibling cloud-itonami-isic-* operator console in this fleet pins.
+        io.github.kotoba-lang/jp-go-digital-design-system
+        {:git/url "https://github.com/kotoba-lang/jp-go-digital-design-system"
+         :git/sha "83db99546eabc53613ae826ea41d1533a3c574af"}}
  :aliases
  {;; offline workspace dev -- pin transitive langchain to local checkout
   :dev {:override-deps
@@ -49,6 +60,11 @@
          {:local/root "../../kotoba-lang/langchain"}}}
   ;; clojure -M:dev:run  -> drive the demo through one OperationActor
   :run {:main-opts ["-m" "commsdevice.sim"]}
+  ;; clojure -M:dev:render-html [out-file] -> regenerate
+  ;; docs/samples/operator-console.html by RUNNING the real actor
+  ;; (flagship checklist item 2, ADR-2607189300). Deterministic: two
+  ;; consecutive runs are byte-identical.
+  :render-html {:main-opts ["-m" "commsdevice.render-html"]}
   :export {:main-opts ["-m" "commsdevice.export-run"]}
   :test {:extra-paths ["test"]
          :extra-deps {io.github.cognitect-labs/test-runner
