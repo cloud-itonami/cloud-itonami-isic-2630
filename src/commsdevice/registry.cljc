@@ -32,7 +32,7 @@
   `commsdevice.operation`'s `:actuation/ship-device-unit`/`:actuation/
   issue-radio-conformity-certificate`, always human-gated -- see README
   `Actuation`)."
-  (:require [clojure.string :as str]))
+  (:require [kotoba.lang.text :as str]))
 
 (defn- unsigned-certificate
   "Every certificate this actor produces is UNSIGNED -- signature is the
@@ -80,7 +80,7 @@
     (throw (ex-info "device-unit-shipment: jurisdiction required" {})))
   (when (< sequence 0)
     (throw (ex-info "device-unit-shipment: sequence must be >= 0" {})))
-  (let [shipment-number (str (str/upper-case jurisdiction) "-SHP-" (zero-pad sequence 6))
+  (let [shipment-number (str (str/upper jurisdiction) "-SHP-" (zero-pad sequence 6))
         record {"record_id" shipment-number
                 "kind" "device-unit-shipment-draft"
                 "device_unit_id" device-unit-id
@@ -108,7 +108,7 @@
     (throw (ex-info "radio-conformity-certificate: jurisdiction required" {})))
   (when (< sequence 0)
     (throw (ex-info "radio-conformity-certificate: sequence must be >= 0" {})))
-  (let [certificate-number (str (str/upper-case jurisdiction) "-RCC-" (zero-pad sequence 6))
+  (let [certificate-number (str (str/upper jurisdiction) "-RCC-" (zero-pad sequence 6))
         record {"record_id" certificate-number
                 "kind" "radio-conformity-certificate-draft"
                 "device_unit_id" device-unit-id
