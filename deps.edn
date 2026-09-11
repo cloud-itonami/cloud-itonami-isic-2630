@@ -63,9 +63,9 @@
   :dev {:override-deps
         {io.github.kotoba-lang/langchain
          {:local/root "../../kotoba-lang/langchain"}}}
-  ;; clojure -M:dev:run  -> drive the demo through one OperationActor
+  ;; kbb -M:dev:run  -> drive the demo through one OperationActor
   :run {:main-opts ["-m" "commsdevice.sim"]}
-  ;; clojure -M:dev:render-html [out-file] -> regenerate
+  ;; kbb -M:dev:render-html [out-file] -> regenerate
   ;; docs/samples/operator-console.html by RUNNING the real actor
   ;; (flagship checklist item 2, ADR-2607189300). Deterministic: two
   ;; consecutive runs are byte-identical.
@@ -95,7 +95,7 @@
   ;; the automotive chain's own `cloud-itonami-isic-2910` established
   ;; this exact multi-sibling technique one link earlier (ADR-2607999970).
   ;; Kept out of the default :test alias (and its own test-cross-repo/
-  ;; source root) so plain `clojure -M:dev:test` never REQUIRES same-org
+  ;; source root) so plain `kbb -M:dev:test` never REQUIRES same-org
   ;; sibling checkouts a casual fork of just this repo would not have.
   ;; Still no live network call at runtime: this is a build-time
   ;; classpath dependency exercised by tests, the same category as

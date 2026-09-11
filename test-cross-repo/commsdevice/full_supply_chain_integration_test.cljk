@@ -30,7 +30,7 @@
   already established for a 3-sibling, 3-hop chain one link earlier;
   this file needs only 2 siblings for a 2-hop chain.
 
-  Run with `clojure -M:dev:cross-repo-test`. Still no live network
+  Run with `kbb -M:dev:cross-repo-test`. Still no live network
   call between actors at runtime: this is a build-time classpath
   dependency exercised by tests, same category as every other
   `:local/root` dependency in this fleet."

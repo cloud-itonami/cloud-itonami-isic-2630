@@ -10,9 +10,9 @@ real `kotoba-lang/physics-2d` time-stepped rigid-body engine this actor's
 and operator contracts.
 
 ```bash
-clojure -M:dev:test
-clojure -M:lint
-clojure -M:dev:run
+kbb -M:dev:test
+kbb -M:lint
+kbb -M:dev:run
 ```
 
 ## Rules
