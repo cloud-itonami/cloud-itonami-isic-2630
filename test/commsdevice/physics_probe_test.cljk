@@ -1,0 +1,52 @@
+(ns commsdevice.physics-probe-test
+  "The probe is the bot's only source of \"measured\"; these pin that it
+  measures (every run numeric, count = expected), that the numbers come
+  from the simulation (the derived mass window really straddles the band),
+  and that a changed solver would show."
+  (:require [clojure.test :refer [deftest is testing]]
+            [commsdevice.physics-probe :as probe]
+            [commsdevice.robotics :as robotics]))
+
+(deftest probe-measures-every-run
+  (let [p (probe/probe)]
+    (is (= "itonami.physical-ai.probe.v1" (:physics-probe/schema p)))
+    (is (pos? (:count p)))
+    (is (= (:count p) (:expected p) (count (:runs p))))
+    (testing "every run carries a numeric pressure and tick count from the trajectory"
+      (doseq [r (:runs p)]
+        (is (number? (get-in r [:quantities :sim-peak-bonding-pressure-mpa])))
+        (is (pos? (get-in r [:quantities :ticks])))))))
+
+(deftest pressure-rises-with-platen-mass-across-the-sweep
+  (let [ps (map #(get-in % [:quantities :sim-peak-bonding-pressure-mpa]) (:runs (probe/probe)))]
+    (is (apply < ps))))
+
+(deftest seed-unit-verdicts
+  (testing "the 18/20 kg seed units land in the band; the 45 kg seed unit is over it; 8 kg is under"
+    (let [by-m (into {} (map (fn [r] [(get-in r [:input :bonding-press-platen-mass-kg]) (:out-of-tolerance? r)])
+                             (:runs (probe/probe))))]
+      (is (false? (by-m 18.0)))
+      (is (false? (by-m 20.0)))
+      (is (true? (by-m 45.0)))
+      (is (true? (by-m 8.0))))))
+
+(deftest derived-mass-window-straddles-the-band
+  (let [{:keys [min-passing-platen-mass-kg max-passing-platen-mass-kg]} (:derived (probe/probe))
+        p (fn [kg] (:sim-peak-bonding-pressure-mpa (robotics/bonding-telemetry-for {:bonding-press-platen-mass-kg kg})))]
+    (is (number? min-passing-platen-mass-kg))
+    (is (number? max-passing-platen-mass-kg))
+    (is (< min-passing-platen-mass-kg 18.0 20.0 max-passing-platen-mass-kg 45.0))
+    (testing "at each edge the pressure reaches the bound; 1% lighter it does not"
+      (is (>= (p min-passing-platen-mass-kg) robotics/min-bonding-pressure-mpa))
+      (is (< (p (* 0.99 min-passing-platen-mass-kg)) robotics/min-bonding-pressure-mpa))
+      (is (>= (p max-passing-platen-mass-kg) robotics/max-bonding-pressure-mpa))
+      (is (< (p (* 0.99 max-passing-platen-mass-kg)) robotics/max-bonding-pressure-mpa)))))
+
+(deftest bond-travel-is-measured-against-the-oca-layer
+  (let [d (:derived (probe/probe))]
+    (is (number? (:max-bond-travel-m d)))
+    (testing "the rigid collider never squeezes the full OCA layer it stands for"
+      (is (< (:max-bond-travel-m d) (:oca-layer-thickness-m d))))))
+
+(deftest bracket-that-does-not-straddle-answers-nil
+  (is (nil? (probe/mass-at-pressure-kg robotics/min-bonding-pressure-mpa 50.0 100.0 10))))
