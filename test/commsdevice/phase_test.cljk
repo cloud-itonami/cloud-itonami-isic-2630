@@ -3,7 +3,7 @@
   regress on: `:actuation/ship-device-unit`/`:actuation/issue-radio-
   conformity-certificate` must NEVER be a member of any phase's `:auto`
   set."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [commsdevice.phase :as phase]))
 
 (deftest ship-device-unit-never-auto-at-any-phase
